@@ -14,6 +14,9 @@
 
 #define AP_BATT_CAPACITY_DEFAULT            3300
 #define AP_BATT_LOW_VOLT_TIMEOUT_MS         10000   // low voltage of 10 seconds will cause battery_exhausted to return true
+#define AP_BATT_CAPAC_EST_DEFAULT           0
+#define AP_BATT_EST_GAIN_DEFAULT            212.53f
+#define AP_BATT_EST_OFFSET_DEFAULT          -765.29f
 
 // declare backend class
 class AP_BattMonitor_Backend;
@@ -53,7 +56,11 @@ public:
         float       current_total_mah;  // total current draw since start-up
         uint32_t    last_time_micros;   // time when voltage and current was last read
         uint32_t    low_voltage_start_ms;  // time when voltage dropped below the minimum
-    };
+        uint32_t     initial_capacity;   // initial battery capacity in mAh (equal or less than _pack_capacity)
+        bool need_capacity_estimation;	// flag to know if we already estimated initial capacity
+        float vstable;					// variable needed to check if voltage readings are stable
+        uint32_t tstable;				// time when voltage stable variable was last set
+	};
 
     // Return the number of battery monitor instances
     uint8_t num_instances(void) const { return _num_instances; }
@@ -116,6 +123,9 @@ protected:
     AP_Float    _curr_amp_per_volt[AP_BATT_MONITOR_MAX_INSTANCES];  /// voltage on current pin multiplied by this to calculate current in amps
     AP_Float    _curr_amp_offset[AP_BATT_MONITOR_MAX_INSTANCES];    /// offset voltage that is subtracted from current pin before conversion to amps
     AP_Int32    _pack_capacity[AP_BATT_MONITOR_MAX_INSTANCES];      /// battery pack capacity less reserve in mAh
+    AP_Int8		_capacity_estimation[AP_BATT_MONITOR_MAX_INSTANCES];    // 0=disabled, 1=1 cell LiPo, 2=2 cell LiPo, 3=3 cell LiPo, 4=4 cell LiPo, 5=5 cell LiPo, 6=6 cell LiPo
+    AP_Float	_est_gain[AP_BATT_MONITOR_MAX_INSTANCES];
+    AP_Float	_est_offset[AP_BATT_MONITOR_MAX_INSTANCES];
 
 private:
     BattMonitor_State state[AP_BATT_MONITOR_MAX_INSTANCES];

@@ -43,6 +43,12 @@ public:
     /// set capacity for this instance
     void set_capacity(uint32_t capacity);
 
+	// Check if voltage is stable: it have fluctuated less than 0.2 volts for 2 seconds under no load (less than 1 amp draw)
+    bool is_voltage_stable();
+
+    // Make a rough estimation of the initial battery capacity based on its voltage under no load
+    void calculate_initial_capacity();
+
 protected:
     AP_BattMonitor                      &_mon;      // reference to front-end
     AP_BattMonitor::BattMonitor_State   &_state;    // reference to this instances state (held in the front-end)

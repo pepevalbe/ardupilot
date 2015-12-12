@@ -4,7 +4,6 @@
 #include "AP_BattMonitor_SMBus.h"
 #include "AP_BattMonitor_Bebop.h"
 
-extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_BattMonitor::var_info[] = {
     // @Param: _MONITOR
@@ -55,6 +54,25 @@ const AP_Param::GroupInfo AP_BattMonitor::var_info[] = {
     // @Increment: 50
     // @User: Standard
     AP_GROUPINFO("_CAPACITY", 6, AP_BattMonitor, _pack_capacity[0], AP_BATT_CAPACITY_DEFAULT),
+
+    // @Param: CAPAC_EST
+    // @DisplayName: Battery capacity estimation at startup
+    // @Description: Whether to estimate the initial battery capacity at startup (some %) or not (assume 100%). When enabled this parameter represents the number of cells in the battery pack
+    // @Values: 0:Disabled, 1: 1 cell, 2: 2 cell, 3: 3 cell, 4: 4 cell, 5: 5 cell, 6: 6 cell
+    // @User: Standard
+    AP_GROUPINFO("_CAPAC_EST", 7, AP_BattMonitor, _capacity_estimation[0], AP_BATT_CAPAC_EST_DEFAULT),
+
+    // @Param: EST_GAIN
+    // @DisplayName: Battery capacity estimation gain curve
+    // @Description: Gain of the curve that represent the relation voltage/remaining_capacity(%) of a single cell battery: Capacity = Voltage*gain + offset. Default value is valid for most common LiPo batteries, only change it if you know what you are doing
+    // @User: Advanced
+    AP_GROUPINFO("_EST_GAIN", 8, AP_BattMonitor, _est_gain[0], AP_BATT_EST_GAIN_DEFAULT),
+
+    // @Param: EST_OFFSET
+    // @DisplayName: Battery capacity estimation offset
+    // @Description: Offset of the curve that represent the relation voltage/remaining_capacity(%) of a single cell battery: Capacity = Voltage*gain + offset. Default value is valid for most common LiPo batteries, only change it if you know what you are doing
+    // @User: Advanced
+    AP_GROUPINFO("_EST_OFFSET", 9, AP_BattMonitor, _est_offset[0], AP_BATT_EST_OFFSET_DEFAULT),
 
     // 7 & 8 were used for VOLT2_PIN and VOLT2_MULT
     // 9..10 left for future expansion
@@ -108,6 +126,25 @@ const AP_Param::GroupInfo AP_BattMonitor::var_info[] = {
     // @Increment: 50
     // @User: Standard
     AP_GROUPINFO("2_CAPACITY", 17, AP_BattMonitor, _pack_capacity[1], AP_BATT_CAPACITY_DEFAULT),
+
+    // @Param: 2_CAPAC_EST
+    // @DisplayName: Battery capacity estimation at startup
+    // @Description: Whether to estimate the initial battery capacity at startup (some %) or not (assume 100%). When enabled this parameter represents the number of cells in the battery pack
+    // @Values: 0:Disabled, 1: 1 cell, 2: 2 cell, 3: 3 cell, 4: 4 cell, 5: 5 cell, 6: 6 cell
+    // @User: Standard
+    AP_GROUPINFO("2_CAPAC_EST", 18, AP_BattMonitor, _capacity_estimation[1], AP_BATT_CAPAC_EST_DEFAULT),
+
+    // @Param: 2_EST_GAIN
+    // @DisplayName: Battery capacity estimation gain curve
+    // @Description: Gain of the curve that represent the relation voltage/remaining_capacity(%) of a single cell battery. Default value is valid for most common LiPo batteries, only change it if you know what you are doing
+    // @User: Advanced
+    AP_GROUPINFO("2_EST_GAIN", 19, AP_BattMonitor, _est_gain[1], AP_BATT_EST_GAIN_DEFAULT),
+
+    // @Param: 2_EST_OFFSET
+    // @DisplayName: Battery capacity estimation offset
+    // @Description: Offset of the curve that represent the relation voltage/remaining_capacity(%) of a single cell battery. Default value is valid for most common LiPo batteries, only change it if you know what you are doing
+    // @User: Advanced
+    AP_GROUPINFO("2_EST_OFFSET", 20, AP_BattMonitor, _est_offset[1], AP_BATT_EST_OFFSET_DEFAULT),
 
 #endif // AP_BATT_MONITOR_MAX_INSTANCES > 1
 
@@ -292,7 +329,7 @@ bool AP_BattMonitor::exhausted(uint8_t instance, float low_voltage, float min_ca
     }
 
     // check capacity if current monitoring is enabled
-    if (has_current(instance) && (min_capacity_mah>0) && (_pack_capacity[instance] - state[instance].current_total_mah < min_capacity_mah)) {
+    if (has_current(instance) && (min_capacity_mah>0) && (state[instance].initial_capacity - state[instance].current_total_mah < min_capacity_mah)) {
         return true;
     }
 

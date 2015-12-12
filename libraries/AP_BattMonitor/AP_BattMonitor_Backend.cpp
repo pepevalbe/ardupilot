@@ -16,8 +16,10 @@
 
 #include <AP_Common/AP_Common.h>
 #include <AP_HAL/AP_HAL.h>
+#include <AP_Math/AP_Math.h>
 #include "AP_BattMonitor.h"
 #include "AP_BattMonitor_Backend.h"
+
 
 /*
   base class constructor.
@@ -33,9 +35,9 @@ AP_BattMonitor_Backend::AP_BattMonitor_Backend(AP_BattMonitor &mon, uint8_t inst
 /// capacity_remaining_pct - returns the % battery capacity remaining (0 ~ 100)
 uint8_t AP_BattMonitor_Backend::capacity_remaining_pct() const
 {
-    float mah_remaining = _mon._pack_capacity[_state.instance] - _state.current_total_mah;
-    if ( _mon._pack_capacity[_state.instance] > 10 ) { // a very very small battery
-        return (100 * (mah_remaining) / _mon._pack_capacity[_state.instance]);
+    float mah_remaining = _state.initial_capacity - _state.current_total_mah;
+    if ( _mon._pack_capacity[_instance] > 10 ) { // a very very small battery
+        return (100 * (mah_remaining) / _mon._pack_capacity[_instance]);
     } else {
         return 0;
     }
@@ -45,4 +47,54 @@ uint8_t AP_BattMonitor_Backend::capacity_remaining_pct() const
 void AP_BattMonitor_Backend::set_capacity(uint32_t capacity)
 {
     _mon._pack_capacity[_instance] = capacity;
+}
+
+/*
+*   This function is needed to check when is possible to use voltage to make a rough estimation of the initial battery capacity
+*   Voltage is considered stable when it have fluctuated less than 0.2 volts for 2 seconds under no load (less than 1 amp draw)
+*/
+bool AP_BattMonitor_Backend::is_voltage_stable() {
+
+    // get current time
+    uint32_t tnow = AP_HAL::millis();
+
+    if (_state.current_amps > 1) {
+        // If drawing more than 1 amp we skip the proccess
+        _state.vstable = 0;
+        _state.tstable = tnow;
+    }
+    else if (_state.vstable > 0 && _state.vstable > _state.voltage - 0.2 && _state.vstable < _state.voltage + 0.2) {
+        if (tnow - _state.tstable > 2000) {
+            return true;
+        }
+    }
+    else {
+        _state.vstable = _state.voltage;
+        _state.tstable = tnow;
+    }
+
+    return false;
+}
+
+/*
+*   This function makes a rough estimation of initial battery capacity based on its voltage under no load. It should be called once voltage is stable
+*   It is based on the empirical formula obtained from measures from 3.65v to 4v in a single cell LiPo.
+*   Within this range the relation voltage/capacity_percentage is linear. Outside this range we assume battery is at 100% (full) or 0% (empty)
+*/
+void AP_BattMonitor_Backend::calculate_initial_capacity()
+{
+    if (_mon._capacity_estimation[_instance] == 0 )
+    {
+        // This shouldn't be call if estimation disabled. Just in case we set to pack_capacity
+        _state.initial_capacity = _mon._pack_capacity[_instance];
+    }
+    else
+    {
+        uint8_t num_cells = _mon._capacity_estimation[_instance];	// If estimation enabled, this parameter tell the number of cells
+        float capacity_percentage = _mon._est_gain[_instance]*_state.voltage/num_cells + _mon._est_offset[_instance];	// Empirical formula
+
+        capacity_percentage = constrain_float(capacity_percentage, 0, 100);
+
+        _state.initial_capacity = _mon._pack_capacity[_instance] * capacity_percentage/100.0f;
+    }
 }
